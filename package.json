@@ -1,0 +1,23 @@
+{
+  "name": "practico",
+  "version": "1.0.0",
+  "description": "Obligatorio Blockchain 2021",
+  "main": "index.js",
+  "dependencies": {},
+  "devDependencies": {
+    "hardhat": "^2.6.6"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/santidiaz/blockchain-tech.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/santidiaz/blockchain-tech/issues"
+  },
+  "homepage": "https://github.com/santidiaz/blockchain-tech#readme"
+}
