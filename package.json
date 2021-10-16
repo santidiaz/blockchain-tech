@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "Obligatorio Blockchain 2021",
   "main": "index.js",
-  "dependencies": {},
+  "dependencies": {
+    "ethers": "^5.4.7"
+  },
   "devDependencies": {
     "hardhat": "^2.6.6"
   },
