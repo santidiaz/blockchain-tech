@@ -3,24 +3,29 @@ pragma solidity 0.8.4;
 
 contract Account {
     // State variables
-    string public rol;
+    Rol private _rol;
 
     // Mappings
     
     // Enums
+    enum Rol {
+        OWNER,
+        MAKER,
+        VOTER,
+        AUDITOR
+    }
     
     // Structs
 
     // Address
-    address payable public owner;
-    address private _myAddress;
+    address private _owner;
 
     // Events
     event transferToken(address indexed _from, address indexed _to, uint256 _amount);
     
     // Modifiers
     modifier onlyOwner() {
-        require(msg.sender == owner, "Not the owner.");
+        require(msg.sender == _owner, "Not the owner.");
         _;
     }
 
@@ -30,14 +35,20 @@ contract Account {
     }
 
     // Constructor
-    constructor() {
+    constructor(uint inputRol, address _account) {
         // Initialization
-        owner = payable(msg.sender);
+        _owner = _account;
+        _rol = inputRol;
+        // TODO: Log this with emit
     }
     
     // Functions
     function getRole() public onlyOwner() {
         // return "Owner role";
+    }
+
+    function getOwner() external view returns(address) {
+        return _owner;
     }
 
     function getVersion() public pure returns(string memory) {
