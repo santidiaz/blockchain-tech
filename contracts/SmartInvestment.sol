@@ -23,6 +23,8 @@ contract SmartInvestment {
     // Address
 
     // Events
+    event founderSet(address indexed oldOwner);
+    event newOwner(address indexed addedBy, address indexed newOwner);
 
     // Modifiers
     modifier onlyOwners() {
@@ -35,9 +37,11 @@ contract SmartInvestment {
 
         founder = msg.sender;
         _addressByRole[msg.sender][Account.Role.OWNER] = true; // Retorna true si el address existe para el role indicado.
+        emit founderSet(msg.sender);
 
         _addressByAccount[msg.sender] = foundersAccount;
         _owners.push(foundersAccount);
+        emit newOwner(address(0), msg.sender);
     }
 
     function getVersion() external pure returns(string memory) {
@@ -62,6 +66,8 @@ contract SmartInvestment {
         _addressByRole[_newOwnerAddress][Account.Role.OWNER] = true;
         _addressByAccount[_newOwnerAddress] = newAccount;
         _owners.push(newAccount);
+
+        emit newOwner(msg.sender, _newOwnerAddress);
     }
 
     // <view> porque va a leer de la blockchain.
@@ -73,7 +79,6 @@ contract SmartInvestment {
     function getProposals() public view returns(Proposal[] memory) {
         return _proposals;
     }
-
 
     // function openProposalSubmissionPeriod
 
