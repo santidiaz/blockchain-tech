@@ -17,6 +17,8 @@ contract SmartInvestment {
     mapping(address => Account) private _addressByAccount;
     
     // Enums
+    enum Status { INACTIVE, NEUTRAL, OPEN_PROPOSALS, VOTING }
+    Status systemStatus = Status.INACTIVE;
 
     // Structs
 
@@ -46,6 +48,20 @@ contract SmartInvestment {
 
     function getVersion() external pure returns(string memory) {
         return "1.0.0";
+    }
+
+    function getSystemStatus() public view returns(string memory currentStatus) {
+        if (systemStatus == Status.INACTIVE) {
+            currentStatus = "Inactive";
+        } else if (systemStatus == Status.NEUTRAL) {
+            currentStatus = "Neutral";
+        } else if (systemStatus == Status.OPEN_PROPOSALS) {
+            currentStatus = "Proposals Period Open";
+        } else if (systemStatus == Status.VOTING) {
+            currentStatus = "Voting Period Open";
+        }
+
+        return currentStatus;
     }
 
     // Q: Como hacemos para devolver array de addresses? o tupla address/rol
