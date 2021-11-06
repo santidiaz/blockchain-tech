@@ -9,33 +9,59 @@ contract SmartInvestment {
     // State variables
     Proposal[] private _proposals;
     Account[] private _owners;
+    address public founder;
 
     // Mappings
     // mapping(address => Auditors) public _auditors;
-    mapping(address => Account) private _ownerByAddress; // Q: Capaz que podemos filtrar por rol?
+    mapping(address => mapping(Account.Role => bool)) private _addressByRole;
+    mapping(address => Account) private _addressByAccount;
     
     // Enums
-    
+
     // Structs
 
     // Address
 
     // Events
-    event ownerSet(address indexed oldOwner, address indexed newOwner);
 
     // Modifiers
     modifier onlyOwners() {
-        require(_ownerByAddress[msg.sender], "Not an owner.");
+        require(_addressByRole[msg.sender][Account.Role.OWNER] == true, "Not an owner.");
         _;
     }
 
     constructor() {
-        _owners.push(Account(msg.sender));
-        emit ownerSet(address(0), _owners[]);
+        Account foundersAccount = new Account(msg.sender, Account.Role.OWNER);
+
+        founder = msg.sender;
+        _addressByRole[msg.sender][Account.Role.OWNER] = true; // Retorna true si el address existe para el role indicado.
+
+        _addressByAccount[msg.sender] = foundersAccount;
+        _owners.push(foundersAccount);
     }
 
     function getVersion() external pure returns(string memory) {
         return "1.0.0";
+    }
+
+    // Q: Como hacemos para devolver array de addresses? o tupla address/rol
+    function getOwners() public view returns(Account[] memory) {
+        return _owners;
+    }
+
+    function ownersCount() public view returns(uint256) {
+        return _owners.length;
+    }
+
+    function addOwner(address _newOwnerAddress) external onlyOwners() {
+        require(_newOwnerAddress != address(0), 'ERC20: approve from the zero address');
+        require(_addressByRole[_newOwnerAddress][Account.Role.OWNER] == false, 'Owner already exists.');
+
+        Account newAccount = new Account(_newOwnerAddress, Account.Role.OWNER);
+
+        _addressByRole[_newOwnerAddress][Account.Role.OWNER] = true;
+        _addressByAccount[_newOwnerAddress] = newAccount;
+        _owners.push(newAccount);
     }
 
     // <view> porque va a leer de la blockchain.
