@@ -7,25 +7,24 @@ import "./Account.sol";
 
 contract SmartInvestment {
     // State variables
-    Proposal[] private _proposals;
-    Account[] private _owners;
     address public founder;
+    address[] private _owners;
+    Proposal[] private _proposals;
 
     // Mappings
-    // mapping(address => Auditors) public _auditors;
     mapping(address => mapping(Account.Role => bool)) private _addressByRole;
     mapping(address => Account) private _addressByAccount;
-    
+
     // Enums
-    enum Status { INACTIVE, NEUTRAL, OPEN_PROPOSALS, VOTING }
-    Status systemStatus = Status.INACTIVE;
+    enum SystemStatus { INACTIVE, NEUTRAL, OPEN_PROPOSALS, VOTING }
+    SystemStatus systemStatus = SystemStatus.INACTIVE;
 
     // Structs
 
     // Address
 
     // Events
-    event founderSet(address indexed oldOwner);
+    event founderSet(address indexed newFounder);
     event newOwner(address indexed addedBy, address indexed newOwner);
 
     // Modifiers
@@ -35,54 +34,46 @@ contract SmartInvestment {
     }
 
     constructor() {
-        Account foundersAccount = new Account(msg.sender, Account.Role.OWNER);
+        founder = address(msg.sender);
+        emit founderSet(founder);
 
-        founder = msg.sender;
-        _addressByRole[msg.sender][Account.Role.OWNER] = true; // Retorna true si el address existe para el role indicado.
-        emit founderSet(msg.sender);
-
-        _addressByAccount[msg.sender] = foundersAccount;
-        _owners.push(foundersAccount);
-        emit newOwner(address(0), msg.sender);
+        _addressByRole[founder][Account.Role.OWNER] = true; // Retorna true si el address existe para el role indicado.
+        _owners.push(founder);
+        emit newOwner(address(0), founder);
     }
 
     function getVersion() external pure returns(string memory) {
         return "1.0.0";
     }
 
-    function getSystemStatus() public view returns(string memory currentStatus) {
-        if (systemStatus == Status.INACTIVE) {
-            currentStatus = "Inactive";
-        } else if (systemStatus == Status.NEUTRAL) {
-            currentStatus = "Neutral";
-        } else if (systemStatus == Status.OPEN_PROPOSALS) {
-            currentStatus = "Proposals Period Open";
-        } else if (systemStatus == Status.VOTING) {
-            currentStatus = "Voting Period Open";
-        }
-
-        return currentStatus;
-    }
-
-    // Q: Como hacemos para devolver array de addresses? o tupla address/rol
-    function getOwners() public view returns(Account[] memory) {
+    function getOwners() external view returns(address[] memory) {
         return _owners;
     }
 
-    function ownersCount() public view returns(uint256) {
-        return _owners.length;
+    function isOwner(address _ownerAddress) external view returns(bool) {
+        return _addressByRole[_ownerAddress][Account.Role.OWNER];
+    }
+
+    function getSystemStatus() public view returns(string memory currentStatus) {
+        if (systemStatus == SystemStatus.NEUTRAL) {
+            currentStatus = "Neutral";
+        } else if (systemStatus == SystemStatus.OPEN_PROPOSALS) {
+            currentStatus = "Proposals Period Open";
+        } else if (systemStatus == SystemStatus.VOTING) {
+            currentStatus = "Voting Period Open";
+        } else if (systemStatus == SystemStatus.INACTIVE) {
+            currentStatus = "Inactive";
+        }
+
+        return currentStatus;
     }
 
     function addOwner(address _newOwnerAddress) external onlyOwners() {
         require(_newOwnerAddress != address(0), 'ERC20: approve from the zero address');
         require(_addressByRole[_newOwnerAddress][Account.Role.OWNER] == false, 'Owner already exists.');
 
-        Account newAccount = new Account(_newOwnerAddress, Account.Role.OWNER);
-
         _addressByRole[_newOwnerAddress][Account.Role.OWNER] = true;
-        _addressByAccount[_newOwnerAddress] = newAccount;
-        _owners.push(newAccount);
-
+        _owners.push(_newOwnerAddress);
         emit newOwner(msg.sender, _newOwnerAddress);
     }
 

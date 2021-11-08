@@ -10,7 +10,13 @@ contract Maker is Account {
     uint256 public passport_number;
     
     // Constructor
-    constructor(string memory _name, string memory _residence_country, uint256 _passport_number) {
+    constructor(
+        string memory _name,
+        string memory _residence_country,
+        uint256 _passport_number,
+        address _ownerAddress,
+        Role _role
+        ) Account(_ownerAddress, _role) {
         name = _name;
         residence_country = _residence_country;
         passport_number = _passport_number;
