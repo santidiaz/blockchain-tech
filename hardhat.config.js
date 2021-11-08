@@ -1,15 +1,17 @@
+
+require("dotenv").config();
 require("@nomiclabs/hardhat-ethers");
 require("@nomiclabs/hardhat-waffle");
 
 module.exports = {
   solidity: "0.8.4",
-  defaultNetwork: "rinkeby", // <ganache> por defecto.
+  // defaultNetwork: "rinkeby", // <ganache> por defecto.
   networks: {
     hardhat: {
       chainid: 31337
     },
     ganache: {
-      chainid: 1337,
+      chainid: 5777,
       url: process.env.GANACHE_URL,
       accounts: [process.env.PRIVATE_KEY_G],
       from: process.env.ACCOUNT_ADDRESS_G
