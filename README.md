@@ -1,7 +1,6 @@
-# blockchain-tech
-ORT - Obligatorio Blockchain
+# ORT - Obligatorio Blockchain
 
 **Estudiantes:**
-* Martin
-* Misael
+* Martin Trindade - 241635
+* Misael Mallada - 228038
 * Santiago Diaz - 159593
