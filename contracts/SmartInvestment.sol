@@ -40,9 +40,7 @@ contract SmartInvestment {
     }
 
     modifier isAvailableForProposalAndVote() {
-        uint256 auditorsCount = getRoleCount(_auditors, Account.Role.AUDITOR);
-        uint256 makersCount = getRoleCount(_makers, Account.Role.MAKER);
-        require(auditorsCount >= 2 && makersCount >= 3, "Not availabel for proposal and vote.");
+        require(_auditors.length >= 2 && _makers.length >= 3, "Not availabel for proposal and vote.");
         _;
     }
 
@@ -125,17 +123,6 @@ contract SmartInvestment {
 
     function getProposals() public view returns(Proposal[] memory) {
         return _proposals;
-    }
-
-    function getRoleCount(address[] memory _addresses, Account.Role _role) public view returns(uint256) {
-        uint addressesLength = _addresses.length;
-        uint count = 0;
-        for (uint i=0; i < addressesLength; i++) {
-           if (_addressByRole[_addresses[i]][_role]) {
-            count ++;
-           }
-        }
-        return count;
     }
 
     // function openProposalSubmissionPeriod
