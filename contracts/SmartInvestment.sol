@@ -2,27 +2,36 @@
 pragma solidity 0.8.4;
 
 import "./Proposal.sol";
-// import "./Owner.sol";
 import "./Account.sol";
 
 contract SmartInvestment {
     // State variables
     address public founder;
     address[] private _owners;
-    address[] private _auditors;
-    address[] private _voters;
     address[] private _makers;
-    Proposal[] private _proposals;
+    address[] private _auditors;
+    Proposal[] public proposals;
+    ProposalData[] private _proposalsData;
 
     // Mappings
     mapping(address => mapping(Account.Role => bool)) private _addressByRole;
-    mapping(address => Account) private _addressByAccount;
+    mapping(bytes32 => Proposal) private _proposalByName;
+    mapping(bytes32 => ProposalData) private _proposalDataByName;
 
     // Enums
     enum SystemStatus { INACTIVE, NEUTRAL, OPEN_PROPOSALS, VOTING }
     SystemStatus systemStatus = SystemStatus.INACTIVE;
 
     // Structs
+    struct ProposalData {
+        bytes32 name;
+        string description;
+        uint256 minAmountRequired; // ethers
+        uint256 balance; // ethers
+        address maker;
+        bool audited;
+        bool exists;
+    }
 
     // Address
 
@@ -32,6 +41,10 @@ contract SmartInvestment {
     event newAuditor(address indexed addedBy, address indexed newAuditor);
     event newVoter(address indexed addedBy, address indexed newVoter);
     event newMaker(address indexed addedBy, address indexed newMaker);
+    event newProposal(address indexed proposedBy, bytes32 proposalName);
+    
+    event transactionRolledBack(address indexed _from, uint _amount);
+    event systemActivated(address indexed _account, bytes32 _action);
 
     // Modifiers
     modifier onlyOwners() {
@@ -39,8 +52,23 @@ contract SmartInvestment {
         _;
     }
 
-    modifier isAvailableForProposalAndVote() {
-        require(_auditors.length >= 2 && _makers.length >= 3, "Not availabel for proposal and vote.");
+    modifier onlyMakers() {
+        require(_addressByRole[msg.sender][Account.Role.MAKER] == true, "Not a maker.");
+        _;
+    }
+    
+    modifier onlyAuditor() {
+        require(_addressByRole[msg.sender][Account.Role.AUDITOR] == true, "Not an auditor.");
+        _;
+    }
+
+    modifier systemActive() {
+        require(systemStatus == SystemStatus.NEUTRAL, "System unavailable.");
+        _;
+    }
+    
+    modifier nonZeroAddr(address _targetAddress) {
+        require(_targetAddress != address(0), 'Zero address not allowed.');
         _;
     }
 
@@ -79,8 +107,7 @@ contract SmartInvestment {
         return currentStatus;
     }
 
-    function addOwner(address _newOwnerAddress) external onlyOwners() {
-        require(_newOwnerAddress != address(0), 'ERC20: approve from the zero address');
+    function addOwner(address _newOwnerAddress) external nonZeroAddr(_newOwnerAddress) onlyOwners() {
         require(_addressByRole[_newOwnerAddress][Account.Role.OWNER] == false, 'Owner already exists.');
 
         _addressByRole[_newOwnerAddress][Account.Role.OWNER] = true;
@@ -88,50 +115,104 @@ contract SmartInvestment {
         emit newOwner(msg.sender, _newOwnerAddress);
     }
 
-    function addAuditor(address _newAuditorAddress) external {
-        require(_newAuditorAddress != address(0), 'ERC20: approve from the zero address');
+    function addAuditor(address _newAuditorAddress) external nonZeroAddr(_newAuditorAddress) onlyOwners() {
         require(_addressByRole[_newAuditorAddress][Account.Role.AUDITOR] == false, 'Auditor already exists.');
 
         _addressByRole[_newAuditorAddress][Account.Role.AUDITOR] = true;
         _auditors.push(_newAuditorAddress);
         emit newAuditor(msg.sender, _newAuditorAddress);
+
+        activateSystem('addAuditor');
     }
 
-    function addMaker(address _newMakerAddress) external {
-        require(_newMakerAddress != address(0), 'ERC20: approve from the zero address');
+    function addMaker(address _newMakerAddress) external nonZeroAddr(_newMakerAddress) onlyOwners() {
         require(_addressByRole[_newMakerAddress][Account.Role.MAKER] == false, 'Maker already exists.');
 
         _addressByRole[_newMakerAddress][Account.Role.MAKER] = true;
         _makers.push(_newMakerAddress);
         emit newMaker(msg.sender, _newMakerAddress);
+        
+        activateSystem('addMaker');
     }
 
-    function addVoter(address _newVoterAddress) external {
+    function activateSystem(bytes32 _action) private {
+        if (systemStatus == SystemStatus.INACTIVE && _auditors.length > 1 && _makers.length > 2) {
+            systemStatus = SystemStatus.NEUTRAL;
+            emit systemActivated(msg.sender, _action);
+        }
+    }
+
+    /*function addVoter(address _newVoterAddress) external {
         require(_newVoterAddress != address(0), 'ERC20: approve from the zero address');
         require(_addressByRole[_newVoterAddress][Account.Role.VOTER] == false, 'Voter already exists.');
 
         _addressByRole[_newVoterAddress][Account.Role.VOTER] = true;
         _voters.push(_newVoterAddress);
         emit newVoter(msg.sender, _newVoterAddress);
+    }*/
+
+    function openProposalsPeriod() external systemActive() onlyOwners() {
+        systemStatus = SystemStatus.OPEN_PROPOSALS;
     }
 
-    // <view> porque va a leer de la blockchain.
-    // No <external> porque puede ser leeido desde adentro del contrato tambien.
-    function getProposalsCount() public view returns(uint256) {
-        return _proposals.length;
+    function closeProposalsPeriod() external onlyOwners() {
+        require(systemStatus == SystemStatus.OPEN_PROPOSALS, 'Not allowed, proposals period not open.');
+
+        systemStatus = SystemStatus.VOTING;
+        // Encontrarse abierto el periodo de propuestas
+        // Deben haber sido presentadas al menos 2 propuestas
     }
 
-    function getProposals() public view returns(Proposal[] memory) {
-        return _proposals;
+    function addProposal(bytes32 _name, string memory _description, uint32 _minInvestment) external systemActive() onlyMakers() {
+        require(systemStatus == SystemStatus.OPEN_PROPOSALS, 'Not allowed, proposals period not open.');
+        require(_minInvestment > 5, 'Minimum investment is 5 ETH.');
+        require(_proposalDataByName[_name].exists == true, 'Proposal name already exists.');
+
+        ProposalData memory proposalData = ProposalData({
+            name: _name,
+            description: _description,
+            minAmountRequired: _minInvestment,
+            balance: 0,
+            maker: msg.sender,
+            audited: false,
+            exists: true
+        });
+        _proposalsData.push(proposalData);
+        _proposalDataByName[proposalData.name] = proposalData;
+
+        emit newProposal(proposalData.maker, _name); 
     }
+    
+    /*function auditProposal(uint32 _proposalIndex, address _auditor) external systemActive() onlyAuditor() {
+        require(systemStatus == SystemStatus.OPEN_PROPOSALS, 'Not allowed, proposals period not open.');
+        require(_proposalsData.length > 0, 'No proposals for audit.');
+        require(__proposalsForReview)
+
+        _proposalsData.push(Proposal.Data({
+            name: _name,
+            description: _description,
+            minAmountRequired: _minInvestment,
+            balance: 0,
+            maker: msg.sender
+        }));
+        // TODO: emit proposal created
+    }*/
 
     // function openProposalSubmissionPeriod
 
-    // function closeProposalSubmissionPeriod {
+    // function closeProposalSubmissionPeriod isOwner() {
         // openVotingPeriod
     // }
     
     // function submitProposal() isAvailableForProposalAndVote()
 
     // 
+    
+    /**
+     * @dev Logs senders address and amount (wei sent), then rollback transaction
+     */
+    receive() external payable {
+        emit transactionRolledBack(msg.sender, msg.value);
+        revert();
+    }
 }
