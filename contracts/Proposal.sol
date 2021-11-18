@@ -1,29 +1,37 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.4;
 
-import "./Maker.sol";
-
 contract Proposal {
     // State variables
     string private _name;
     string private _description;
     uint256 private _min_amount_required = 5; // ethers
+    uint256 private _balance; // ethers
     Maker private _maker;
+    Voter[] private _voters;
 
     struct Voter {
         bool voted;
+        uint256 balance; // Cada vez que vota, se suma el monto aca
         address account;
-        uint proposal_id;
+        uint256 proposalIndex;
+    }
+
+    struct Maker {
+        string name;
+        string residence_country;
+        uint256 passport_number;
+        address account;
     }
 
     // - Que la suma de los balances de los contratos de las propuestas hayan alcanzado un mínimo de 50 ethers
     // - Que el cierre sea autorizado por al menos 2 auditors
-    uint256 private _votes_count;
+    uint256 private _votesCount;
     uint256[] private _auditors;
     
     // Mappings
-    mapping(address => Account) private _owners;
-    mapping(address => Voter) private _voters;
+    // mapping(address => Account) private _owners;
+    mapping(address => Voter) public voters;
 
     // Enums
 
@@ -38,7 +46,7 @@ contract Proposal {
     // Modifiers
 
     // Constructor
-    constructor(string memory name, string memory description, Maker maker) {
+    constructor(string memory name, string memory description, Maker memory maker) {
         _name = name;
         _description = description;
         _maker = maker;

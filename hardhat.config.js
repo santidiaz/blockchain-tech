@@ -13,7 +13,7 @@ module.exports = {
     ganache: {
       chainid: 5777,
       url: process.env.GANACHE_URL,
-      accounts: [process.env.PRIVATE_KEY_G],
+      accounts: [process.env.PRIVATE_KEY_G1, process.env.PRIVATE_KEY_G2],
       from: process.env.ACCOUNT_ADDRESS_G
     },
     rinkeby: {
