@@ -2,29 +2,46 @@
 pragma solidity 0.8.4;
 
 import "./Proposal.sol";
-import "./Account.sol";
+// import "./Account.sol";
 
 contract SmartInvestment {
     // State variables
-    address public founder;
-    address[] private _owners;
-    address[] private _makers;
-    address[] private _auditors;
-    Proposal[] public proposals;
-    ProposalData[] private _proposalsData;
+    uint256 public auditorsCount;
+
+    Proposal[] private _proposals;
+    ProposalData[] public _proposalsData;
+    Account[] private _accounts;
+    Maker[] private _makers;
 
     // Mappings
-    mapping(address => mapping(Account.Role => bool)) private _addressByRole;
-    mapping(bytes32 => Proposal) private _proposalByName;
-    mapping(bytes32 => ProposalData) private _proposalDataByName;
+    mapping(address => mapping(Role => bool)) private _roleByAddrs; 
+    mapping(address => Account) public accountByAddrs;
+    mapping(address => Maker) public makerByAddrs;
+
+    mapping(string => Proposal) public proposalByName;
+    mapping(string => ProposalData) private _proposalDataByName;
 
     // Enums
+    enum Role { OWNER, MAKER, VOTER, AUDITOR }
     enum SystemStatus { INACTIVE, NEUTRAL, OPEN_PROPOSALS, VOTING }
-    SystemStatus systemStatus = SystemStatus.INACTIVE;
 
+    SystemStatus private _systemStatus = SystemStatus.INACTIVE;
+    
     // Structs
+    struct Account {
+        address account;
+        Role role;
+    }
+
+    struct Maker {
+        Account data;
+        string name;
+        string residence_country;
+        uint256 passport_number;
+    }
+
     struct ProposalData {
-        bytes32 name;
+        string name;
         string description;
         uint256 minAmountRequired; // ethers
         uint256 balance; // ethers
@@ -34,36 +51,41 @@ contract SmartInvestment {
     }
 
     // Address
+    address public founder;
 
     // Events
-    event founderSet(address indexed newFounder);
     event newOwner(address indexed addedBy, address indexed newOwner);
     event newAuditor(address indexed addedBy, address indexed newAuditor);
     event newVoter(address indexed addedBy, address indexed newVoter);
     event newMaker(address indexed addedBy, address indexed newMaker);
-    event newProposal(address indexed proposedBy, bytes32 proposalName);
+    event newProposal(address indexed proposedBy, string proposalName);
     
     event transactionRolledBack(address indexed _from, uint _amount);
-    event systemActivated(address indexed _account, bytes32 _action);
+    event systemActivated(address indexed _account, string _action);
 
     // Modifiers
     modifier onlyOwners() {
-        require(_addressByRole[msg.sender][Account.Role.OWNER] == true, "Not an owner.");
+        require(_roleByAddrs[msg.sender][Role.OWNER] == true, "Not an owner.");
         _;
     }
 
     modifier onlyMakers() {
-        require(_addressByRole[msg.sender][Account.Role.MAKER] == true, "Not a maker.");
+        require(_roleByAddrs[msg.sender][Role.MAKER] == true, "Not a maker.");
         _;
     }
     
     modifier onlyAuditor() {
-        require(_addressByRole[msg.sender][Account.Role.AUDITOR] == true, "Not an auditor.");
+        require(_roleByAddrs[msg.sender][Role.AUDITOR] == true, "Not an auditor.");
         _;
     }
 
-    modifier systemActive() {
-        require(systemStatus == SystemStatus.NEUTRAL, "System unavailable.");
+    modifier systemStatusIs(SystemStatus _status) {
+        require(_systemStatus == _status, "Action not available.");
+        _;
+    }
+    
+    modifier openProposalPeriod() {
+        require(_systemStatus == SystemStatus.NEUTRAL, "System unavailable.");
         _;
     }
     
@@ -74,33 +96,25 @@ contract SmartInvestment {
 
     constructor() {
         founder = address(msg.sender);
-        emit founderSet(founder);
+        _roleByAddrs[founder][Role.OWNER] = true;
+        accountByAddrs[founder] = Account(founder, Role.OWNER);
+        _accounts.push(accountByAddrs[founder]);
 
-        _addressByRole[founder][Account.Role.OWNER] = true; // Retorna true si el address existe para el role indicado.
-        _owners.push(founder);
-        emit newOwner(address(0), founder);
+        emit newOwner(address(0), address(msg.sender));
     }
 
     function getVersion() external pure returns(string memory) {
         return "1.0.0";
     }
 
-    function getOwners() external view returns(address[] memory) {
-        return _owners;
-    }
-
-    function isOwner(address _ownerAddress) external view returns(bool) {
-        return _addressByRole[_ownerAddress][Account.Role.OWNER];
-    }
-
     function getSystemStatus() public view returns(string memory currentStatus) {
-        if (systemStatus == SystemStatus.NEUTRAL) {
+        if (_systemStatus == SystemStatus.NEUTRAL) {
             currentStatus = "Neutral";
-        } else if (systemStatus == SystemStatus.OPEN_PROPOSALS) {
+        } else if (_systemStatus == SystemStatus.OPEN_PROPOSALS) {
             currentStatus = "Proposals Period Open";
-        } else if (systemStatus == SystemStatus.VOTING) {
+        } else if (_systemStatus == SystemStatus.VOTING) {
             currentStatus = "Voting Period Open";
-        } else if (systemStatus == SystemStatus.INACTIVE) {
+        } else if (_systemStatus == SystemStatus.INACTIVE) {
             currentStatus = "Inactive";
         }
 
@@ -108,79 +122,88 @@ contract SmartInvestment {
     }
 
     function addOwner(address _newOwnerAddress) external nonZeroAddr(_newOwnerAddress) onlyOwners() {
-        require(_addressByRole[_newOwnerAddress][Account.Role.OWNER] == false, 'Owner already exists.');
+        require(_roleByAddrs[_newOwnerAddress][Role.OWNER] == false, 'Owner already exists.');
 
-        _addressByRole[_newOwnerAddress][Account.Role.OWNER] = true;
-        _owners.push(_newOwnerAddress);
+        _roleByAddrs[_newOwnerAddress][Role.OWNER] = true;
+        accountByAddrs[_newOwnerAddress] = Account(_newOwnerAddress, Role.OWNER);
+        _accounts.push(accountByAddrs[_newOwnerAddress]);
+
         emit newOwner(msg.sender, _newOwnerAddress);
     }
 
     function addAuditor(address _newAuditorAddress) external nonZeroAddr(_newAuditorAddress) onlyOwners() {
-        require(_addressByRole[_newAuditorAddress][Account.Role.AUDITOR] == false, 'Auditor already exists.');
+        require(_roleByAddrs[_newAuditorAddress][Role.AUDITOR] == false, 'Auditor already exists.');
 
-        _addressByRole[_newAuditorAddress][Account.Role.AUDITOR] = true;
-        _auditors.push(_newAuditorAddress);
+        _roleByAddrs[_newAuditorAddress][Role.AUDITOR] = true;
+        accountByAddrs[_newAuditorAddress] = Account(_newAuditorAddress, Role.AUDITOR);
+        _accounts.push(accountByAddrs[_newAuditorAddress]);
+        auditorsCount++;
+
         emit newAuditor(msg.sender, _newAuditorAddress);
 
         activateSystem('addAuditor');
     }
 
-    function addMaker(address _newMakerAddress) external nonZeroAddr(_newMakerAddress) onlyOwners() {
-        require(_addressByRole[_newMakerAddress][Account.Role.MAKER] == false, 'Maker already exists.');
+    function addMaker(address _newMakerAddress, string memory _name, string memory _residenceCountry, uint256 _passportNumber) external nonZeroAddr(_newMakerAddress) onlyOwners() {
+        require(_roleByAddrs[_newMakerAddress][Role.MAKER] == false, 'Maker already exists.');
 
-        _addressByRole[_newMakerAddress][Account.Role.MAKER] = true;
-        _makers.push(_newMakerAddress);
+        _roleByAddrs[_newMakerAddress][Role.MAKER] = true;
+        accountByAddrs[_newMakerAddress] = Account(_newMakerAddress, Role.MAKER);
+        makerByAddrs[_newMakerAddress] = Maker(accountByAddrs[_newMakerAddress], _name, _residenceCountry, _passportNumber);
+
+        _accounts.push(accountByAddrs[_newMakerAddress]);
+        _makers.push(makerByAddrs[_newMakerAddress]);
+
         emit newMaker(msg.sender, _newMakerAddress);
         
         activateSystem('addMaker');
     }
 
-    function activateSystem(bytes32 _action) private {
-        if (systemStatus == SystemStatus.INACTIVE && _auditors.length > 1 && _makers.length > 2) {
-            systemStatus = SystemStatus.NEUTRAL;
+    function activateSystem(string memory _action) private {
+        // if (_systemStatus == SystemStatus.INACTIVE && auditorsCount > 1 && _makers.length > 2) {
+        if (_systemStatus == SystemStatus.INACTIVE && auditorsCount > 0 && _makers.length > 0) {
+            _systemStatus = SystemStatus.NEUTRAL;
             emit systemActivated(msg.sender, _action);
         }
     }
 
     /*function addVoter(address _newVoterAddress) external {
         require(_newVoterAddress != address(0), 'ERC20: approve from the zero address');
-        require(_addressByRole[_newVoterAddress][Account.Role.VOTER] == false, 'Voter already exists.');
+        require(_roleByAddrs[_newVoterAddress][Account.Role.VOTER] == false, 'Voter already exists.');
 
-        _addressByRole[_newVoterAddress][Account.Role.VOTER] = true;
+        _roleByAddrs[_newVoterAddress][Account.Role.VOTER] = true;
         _voters.push(_newVoterAddress);
         emit newVoter(msg.sender, _newVoterAddress);
     }*/
 
-    function openProposalsPeriod() external systemActive() onlyOwners() {
-        systemStatus = SystemStatus.OPEN_PROPOSALS;
+    function openProposalsPeriod() external systemStatusIs(SystemStatus.NEUTRAL) onlyOwners() {
+        _systemStatus = SystemStatus.OPEN_PROPOSALS;
     }
 
-    function closeProposalsPeriod() external onlyOwners() {
-        require(systemStatus == SystemStatus.OPEN_PROPOSALS, 'Not allowed, proposals period not open.');
-
-        systemStatus = SystemStatus.VOTING;
+    function closeProposalsPeriod() external systemStatusIs(SystemStatus.OPEN_PROPOSALS) onlyOwners() {
+        _systemStatus = SystemStatus.VOTING;
+        
+        
         // Encontrarse abierto el periodo de propuestas
         // Deben haber sido presentadas al menos 2 propuestas
     }
 
-    function addProposal(bytes32 _name, string memory _description, uint32 _minInvestment) external systemActive() onlyMakers() {
-        require(systemStatus == SystemStatus.OPEN_PROPOSALS, 'Not allowed, proposals period not open.');
+    function addProposal(string memory _name, string memory _description, uint256 _minInvestment) external systemStatusIs(SystemStatus.OPEN_PROPOSALS) onlyMakers() {
         require(_minInvestment > 5, 'Minimum investment is 5 ETH.');
-        require(_proposalDataByName[_name].exists == true, 'Proposal name already exists.');
+        require(_proposalDataByName[_name].exists == false, 'Proposal name already exists.');
 
-        ProposalData memory proposalData = ProposalData({
-            name: _name,
-            description: _description,
-            minAmountRequired: _minInvestment,
-            balance: 0,
-            maker: msg.sender,
-            audited: false,
-            exists: true
-        });
-        _proposalsData.push(proposalData);
-        _proposalDataByName[proposalData.name] = proposalData;
+        _proposalDataByName[_name] = ProposalData(
+            _name,
+            _description,
+            _minInvestment,
+            0, // Balance
+            address(msg.sender), // Maker
+            false, // Audited
+            true // Exists
+        );
+        _proposalsData.push(_proposalDataByName[_name]);
 
-        emit newProposal(proposalData.maker, _name); 
+        emit newProposal(address(msg.sender), _name); 
     }
     
     /*function auditProposal(uint32 _proposalIndex, address _auditor) external systemActive() onlyAuditor() {
