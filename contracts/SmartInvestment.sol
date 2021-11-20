@@ -7,6 +7,7 @@ import "./Proposal.sol";
 contract SmartInvestment {
     // State variables
     uint256 public auditorsCount;
+    uint256 private _auditedProposalsCount;
 
     Proposal[] private _proposals;
     ProposalData[] private _proposalsData;
@@ -176,16 +177,30 @@ contract SmartInvestment {
     }
 
     function closeProposalsPeriod() external systemStatusIs(SystemStatus.OPEN_PROPOSALS) onlyOwners() {
+        require(_auditedProposalsCount > 1, 'Minimun 2 proposal audited required to start voting period.');
+
+        // Itero por las propuestas presentadas.
+        for (uint256 p = 0; p < _proposalsData.length; p++) {
+            // Si fueron auditadas las instancio.
+            if (_proposalsData[p].audited) {
+                // La agrego al mapping para buscar rapido por nombre
+                proposalByName[_proposalsData[p].name] = new Proposal(
+                    _proposalsData[p].name,
+                    _proposalsData[p].description,
+                    _proposalsData[p].maker,
+                    _proposalsData[p].minAmountRequired
+                );
+                // La agrego al array de propuestas instanciadas (Las que ya pueden recibir fondos)
+                _proposals.push(proposalByName[_proposalsData[p].name]);
+            }
+        }
+
         _systemStatus = SystemStatus.VOTING;
-        
-        
-        // Encontrarse abierto el periodo de propuestas
-        // Deben haber sido presentadas al menos 2 propuestas
     }
 
     function addProposal(string memory _name, string memory _description, uint256 _minInvestment) external systemStatusIs(SystemStatus.OPEN_PROPOSALS) onlyMakers() {
         require(_minInvestment > 5, 'Minimum investment is 5 ETH.');
-        require(_proposalDataByName[_name].exists == false, 'Proposal name already exists.');
+        require(!_proposalDataByName[_name].exists, 'Proposal name already exists.');
 
         _proposalDataByName[_name] = ProposalData(
             _name,
@@ -201,26 +216,19 @@ contract SmartInvestment {
         emit newProposal(address(msg.sender), _name); 
     }
     
-    /*function auditProposal(uint32 _proposalIndex, address _auditor) external systemActive() onlyAuditor() {
-        require(systemStatus == SystemStatus.OPEN_PROPOSALS, 'Not allowed, proposals period not open.');
-        require(_proposalsData.length > 0, 'No proposals for audit.');
-        require(__proposalsForReview)
+    function auditProposal(string memory _proposalName) external systemStatusIs(SystemStatus.OPEN_PROPOSALS) onlyAuditor() {
+        require(_proposalDataByName[_proposalName].exists, 'Proposal not found.');
+        require(!_proposalDataByName[_proposalName].audited, 'Already audited.');
 
-        _proposalsData.push(Proposal.Data({
-            name: _name,
-            description: _description,
-            minAmountRequired: _minInvestment,
-            balance: 0,
-            maker: msg.sender
-        }));
-        // TODO: emit proposal created
-    }*/
+        _proposalDataByName[_proposalName].audited = true;
+        _auditedProposalsCount++;
+    }
 
     // function openProposalSubmissionPeriod
 
-    // function closeProposalSubmissionPeriod isOwner() {
-        // openVotingPeriod
-    // }
+    /*function closeProposalSubmissionPeriod isOwner() {
+        openVotingPeriod
+    }*/
     
     // function submitProposal() isAvailableForProposalAndVote()
 
