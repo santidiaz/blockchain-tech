@@ -9,7 +9,7 @@ contract SmartInvestment {
     uint256 public auditorsCount;
 
     Proposal[] private _proposals;
-    ProposalData[] public _proposalsData;
+    ProposalData[] private _proposalsData;
     Account[] private _accounts;
     Maker[] private _makers;
 
@@ -81,11 +81,6 @@ contract SmartInvestment {
 
     modifier systemStatusIs(SystemStatus _status) {
         require(_systemStatus == _status, "Action not available.");
-        _;
-    }
-    
-    modifier openProposalPeriod() {
-        require(_systemStatus == SystemStatus.NEUTRAL, "System unavailable.");
         _;
     }
     
