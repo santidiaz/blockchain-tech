@@ -3,34 +3,22 @@ pragma solidity 0.8.4;
 
 contract Proposal {
     // State variables
-    string private _name;
-    string private _description;
-    uint256 private _min_amount_required = 5; // ethers
-    uint256 private _balance; // ethers
-    Maker private _maker;
+    string public name;
+    string public description;
+    uint256 private _minAmountRequired = 5; // ethers
     Voter[] private _voters;
 
     struct Voter {
+        address account;
         bool voted;
         uint256 balance; // Cada vez que vota, se suma el monto aca
-        address account;
-        uint256 proposalIndex;
-    }
-
-    struct Maker {
-        string name;
-        string residence_country;
-        uint256 passport_number;
-        address account;
     }
 
     // - Que la suma de los balances de los contratos de las propuestas hayan alcanzado un mínimo de 50 ethers
     // - Que el cierre sea autorizado por al menos 2 auditors
     uint256 private _votesCount;
-    uint256[] private _auditors;
     
     // Mappings
-    // mapping(address => Account) private _owners;
     mapping(address => Voter) public voters;
 
     // Enums
@@ -38,32 +26,68 @@ contract Proposal {
     // Structs
 
     // Address
+    address public maker;
+    address public owner;
+
     
     // Events
-    event makerSet(address indexed newMaker);
+    event makerSet(address indexed addedBy, address indexed newMaker);
+    event ownerSet(address indexed addedBy, address indexed newOwner);
     event transferRolledBack(address indexed _from, uint _amount);
 
     // Modifiers
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not an owner.");
+        _;
+    }
+
+    modifier balanceAvailable() {
+        require(address(this).balance > 0);
+        _;
+    }
 
     // Constructor
-    constructor(string memory name, string memory description, Maker memory maker) {
-        _name = name;
-        _description = description;
-        _maker = maker;
+    constructor(string memory _name, string memory _description, address _maker, uint256 _minAmount) {
+        name = _name;
+        description = _description;
+        maker = _maker;
+        _minAmountRequired = _minAmount;
+        owner = address(msg.sender);
 
-        // Q: _maker address? hago un getAddress en Maker?
-        // emit makerSet(_maker);
+        emit makerSet(address(0), maker);
+        emit ownerSet(address(0), owner);
     }
     
     // Functions
-    function getName() external view returns(string memory) {
-        return _name;
+    function vote() external payable {
+        require(msg.value >= _minAmountRequired, string(abi.encodePacked("Minimum required to vote is", _minAmountRequired)));
+
+        _votesCount++;
+        if (voters[address(msg.sender)].voted) {
+            voters[address(msg.sender)].balance += msg.value;
+        } else {
+            _voters.push(
+                Voter(
+                    address(msg.sender),
+                    true, // voted
+                    msg.value // amount voted
+                )
+            );
+        }
+
+        // Require amount > 
+        payable(address(this)).transfer(msg.value); // transfer funds to owner acc
     }
 
-    function getDescription() external view returns(string memory) {
-        return _description;
+    function withdraw(address _remitent) external onlyOwner() balanceAvailable() {
+        payable(_remitent).transfer(address(this).balance);
     }
 
+    function transferOwnership() external onlyOwner() {
+        owner = maker;
+
+        emit ownerSet(msg.sender, owner);
+    }
 
     /**
      * @dev Logs senders address and amount (wei sent), then rollback transaction
