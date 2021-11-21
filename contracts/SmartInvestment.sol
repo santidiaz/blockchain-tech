@@ -13,6 +13,7 @@ contract SmartInvestment {
     ProposalData[] private _proposalsData;
     Account[] private _accounts;
     Maker[] private _makers;
+    address[] private _votingClosureAuthorizers;
 
     // Mappings
     mapping(address => mapping(Role => bool)) private _roleByAddrs; 
@@ -87,6 +88,11 @@ contract SmartInvestment {
     
     modifier nonZeroAddr(address _targetAddress) {
         require(_targetAddress != address(0), 'Zero address not allowed.');
+        _;
+    }
+
+    modifier closeVotingAuthorized() {
+        require(_votingClosureAuthorizers.length > 1, 'Not enought authorizations.');
         _;
     }
 
@@ -195,6 +201,9 @@ contract SmartInvestment {
             }
         }
 
+        // Reseteo algunas variables de estado
+        _auditedProposalsCount = 0;
+        delete _proposalsData;
         _systemStatus = SystemStatus.VOTING;
     }
 
@@ -224,16 +233,64 @@ contract SmartInvestment {
         _auditedProposalsCount++;
     }
 
-    // function openProposalSubmissionPeriod
+    function closeVotingPeriod() external systemStatusIs(SystemStatus.VOTING) onlyOwners() closeVotingAuthorized() {
+        uint256 _proposalsBalanceTotal;
+        for (uint256 p = 0; p < _proposals.length; p++) {
+            _proposalsBalanceTotal += _proposals[p].getBalance();
+        }
+        require(_proposalsBalanceTotal < 50, 'Total proposals balance is less than 50 ETH.');
 
-    /*function closeProposalSubmissionPeriod isOwner() {
-        openVotingPeriod
-    }*/
-    
-    // function submitProposal() isAvailableForProposalAndVote()
+        _systemStatus = SystemStatus.NEUTRAL;
 
-    // 
+        uint256 _winningBalance;
+        uint256 _currentProposalBalance;
+        Proposal _currentProposal;
+        Proposal _winningProposal;
+        for (uint256 p = 0; p < _proposals.length; p++) {
+            _currentProposal = _proposals[p];
+            _currentProposalBalance = _currentProposal.getBalance();
+
+            // Calcular propuesta ganadora
+            if (_currentProposalBalance > _winningBalance) {
+                _winningBalance = _currentProposalBalance;
+                _winningProposal = _currentProposal;
+            } else if (_winningBalance > 0 && _currentProposalBalance == _winningBalance) {
+                if (_currentProposal.votesCount() > _winningProposal.votesCount()) {
+                    _winningProposal = _currentProposal;
+                }
+            }
+        }
+
+        for (uint256 p = 0; p < _proposals.length; p++) {
+            // Comision de 10% del balance del contrato
+            _proposals[p].withdraw(address(this), _proposals[p].getBalance()/10);
+
+            // Enviamos el dinero de las propuestas que perdieron a la ganadora
+            if (_proposals[p] != _winningProposal) {
+                _proposals[p].withdraw(address(_winningProposal), _proposals[p].getBalance());
+            }
+        }
+        
+        // Transferimos la propiedad del contrato de la propuesta ganadora al maker.
+        _winningProposal.transferOwnership();
+
+        delete _votingClosureAuthorizers;
+        // ToDo: Borrar los contratos de los arrays
+
+    }
     
+    function autorizeEndVotingPeriod() external systemStatusIs(SystemStatus.VOTING) onlyAuditor() {
+        bool alreadyAuthorized;
+        for (uint256 p = 0; p < _votingClosureAuthorizers.length; p++) {
+            if (_votingClosureAuthorizers[p] == msg.sender) {
+                alreadyAuthorized = true;
+            }
+        }
+        require(!alreadyAuthorized, 'You already authorized to close voting period.');
+
+        _votingClosureAuthorizers.push(msg.sender);
+    }    
+
     /**
      * @dev Logs senders address and amount (wei sent), then rollback transaction
      */

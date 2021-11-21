@@ -14,9 +14,7 @@ contract Proposal {
         uint256 balance; // Cada vez que vota, se suma el monto aca
     }
 
-    // - Que la suma de los balances de los contratos de las propuestas hayan alcanzado un mínimo de 50 ethers
-    // - Que el cierre sea autorizado por al menos 2 auditors
-    uint256 private _votesCount;
+    uint256 public votesCount;
     
     // Mappings
     mapping(address => Voter) public voters;
@@ -41,8 +39,8 @@ contract Proposal {
         _;
     }
 
-    modifier balanceAvailable() {
-        require(address(this).balance > 0);
+    modifier balanceAvailable(uint256 _amount) {
+        require(address(this).balance > _amount, "Insufficient balance.");
         _;
     }
 
@@ -62,7 +60,7 @@ contract Proposal {
     function vote() external payable {
         require(msg.value >= _minAmountRequired, string(abi.encodePacked("Minimum required to vote is", msg.value)));
 
-        _votesCount++;
+        votesCount++;
         if (voters[address(msg.sender)].voted) {
             voters[address(msg.sender)].balance += msg.value;
         } else {
@@ -79,8 +77,16 @@ contract Proposal {
         payable(address(this)).transfer(msg.value); // transfer funds to owner acc
     }
 
-    function withdraw(address _remitent) external onlyOwner() balanceAvailable() {
-        payable(_remitent).transfer(address(this).balance);
+    function withdraw(address _remitent, uint256 _amount) external onlyOwner() balanceAvailable(_amount) {
+        payable(_remitent).transfer(_amount);
+    }
+
+     function fund(uint256 _amount) external payable onlyOwner() {
+        payable(address(this)).transfer(_amount);
+    }
+
+    function getBalance() external view returns(uint256) {
+        return address(this).balance;
     }
 
     function transferOwnership() external onlyOwner() {
