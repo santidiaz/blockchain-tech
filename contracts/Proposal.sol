@@ -60,7 +60,7 @@ contract Proposal {
     
     // Functions
     function vote() external payable {
-        require(msg.value >= _minAmountRequired, string(abi.encodePacked("Minimum required to vote is", msg.value)));
+        require(msg.value >= _minAmountRequired, string(abi.encodePacked("Minimum required to vote is", _minAmountRequired)));
 
         _votesCount++;
         if (voters[address(msg.sender)].voted) {
