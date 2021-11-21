@@ -95,6 +95,10 @@ contract Proposal {
         emit ownerSet(msg.sender, owner);
     }
 
+    function closeAndTransferFunds(address _owner) external payable onlyOwner() {
+        selfdestruct(payable(address(_owner)));
+    }
+
     /**
      * @dev Logs senders address and amount (wei sent), then rollback transaction
      */

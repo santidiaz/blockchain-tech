@@ -2,13 +2,13 @@
 pragma solidity 0.8.4;
 
 import "./Proposal.sol";
-// import "./Account.sol";
 
 contract SmartInvestment {
     // State variables
     uint256 public auditorsCount;
     uint256 private _auditedProposalsCount;
 
+    Proposal[] public winningProposals;
     Proposal[] private _proposals;
     ProposalData[] private _proposalsData;
     Account[] private _accounts;
@@ -109,7 +109,7 @@ contract SmartInvestment {
         return "1.0.0";
     }
 
-    function getSystemStatus() public view returns(string memory currentStatus) {
+    function getSystemStatus() external view returns(string memory currentStatus) {
         if (_systemStatus == SystemStatus.NEUTRAL) {
             currentStatus = "Neutral";
         } else if (_systemStatus == SystemStatus.OPEN_PROPOSALS) {
@@ -161,12 +161,26 @@ contract SmartInvestment {
         activateSystem('addMaker');
     }
 
-    function activateSystem(string memory _action) private {
-        // if (_systemStatus == SystemStatus.INACTIVE && auditorsCount > 1 && _makers.length > 2) {
-        if (_systemStatus == SystemStatus.INACTIVE && auditorsCount > 0 && _makers.length > 0) {
-            _systemStatus = SystemStatus.NEUTRAL;
-            emit systemActivated(msg.sender, _action);
-        }
+    function addProposal(string memory _name, string memory _description, uint256 _minInvestment)
+        external
+        systemStatusIs(SystemStatus.OPEN_PROPOSALS)
+        onlyMakers()
+    {
+        require(_minInvestment > 5, 'Minimum investment is 5 ETH.');
+        require(!_proposalDataByName[_name].exists, 'Proposal name already exists.');
+
+        _proposalDataByName[_name] = ProposalData(
+            _name,
+            _description,
+            _minInvestment,
+            0, // Balance
+            address(msg.sender), // Maker
+            false, // Audited
+            true // Exists
+        );
+        _proposalsData.push(_proposalDataByName[_name]);
+
+        emit newProposal(address(msg.sender), _name); 
     }
 
     /*function addVoter(address _newVoterAddress) external {
@@ -198,31 +212,18 @@ contract SmartInvestment {
                 );
                 // La agrego al array de propuestas instanciadas (Las que ya pueden recibir fondos)
                 _proposals.push(proposalByName[_proposalsData[p].name]);
+
+                // Limpio mapping
+                delete _proposalDataByName[_proposalsData[p].name];
             }
         }
 
         // Reseteo algunas variables de estado
         _auditedProposalsCount = 0;
         delete _proposalsData;
+
+        // Inicio periodo de votacion
         _systemStatus = SystemStatus.VOTING;
-    }
-
-    function addProposal(string memory _name, string memory _description, uint256 _minInvestment) external systemStatusIs(SystemStatus.OPEN_PROPOSALS) onlyMakers() {
-        require(_minInvestment > 5, 'Minimum investment is 5 ETH.');
-        require(!_proposalDataByName[_name].exists, 'Proposal name already exists.');
-
-        _proposalDataByName[_name] = ProposalData(
-            _name,
-            _description,
-            _minInvestment,
-            0, // Balance
-            address(msg.sender), // Maker
-            false, // Audited
-            true // Exists
-        );
-        _proposalsData.push(_proposalDataByName[_name]);
-
-        emit newProposal(address(msg.sender), _name); 
     }
     
     function auditProposal(string memory _proposalName) external systemStatusIs(SystemStatus.OPEN_PROPOSALS) onlyAuditor() {
@@ -231,6 +232,18 @@ contract SmartInvestment {
 
         _proposalDataByName[_proposalName].audited = true;
         _auditedProposalsCount++;
+    }
+
+    function autorizeEndVotingPeriod() external systemStatusIs(SystemStatus.VOTING) onlyAuditor() {
+        bool alreadyAuthorized;
+        for (uint256 p = 0; p < _votingClosureAuthorizers.length; p++) {
+            if (_votingClosureAuthorizers[p] == msg.sender) {
+                alreadyAuthorized = true;
+            }
+        }
+        require(!alreadyAuthorized, 'You already authorized to close voting period.');
+
+        _votingClosureAuthorizers.push(msg.sender);
     }
 
     function closeVotingPeriod() external systemStatusIs(SystemStatus.VOTING) onlyOwners() closeVotingAuthorized() {
@@ -265,31 +278,23 @@ contract SmartInvestment {
             // Comision de 10% del balance del contrato
             _proposals[p].withdraw(address(this), _proposals[p].getBalance()/10);
 
-            // Enviamos el dinero de las propuestas que perdieron a la ganadora
-            if (_proposals[p] != _winningProposal) {
-                _proposals[p].withdraw(address(_winningProposal), _proposals[p].getBalance());
+            // Hacemos selfdestruct de la propuesta perdedora y mandamos el dinero a la ganadora.
+            if (address(_proposals[p]) != address(_winningProposal)) {
+                // TODO: Abria que limpiar el mapping, pero no funciona me da error por que el name es string
+                // delete proposalByName[_proposals[p].getName()];
+
+                _proposals[p].closeAndTransferFunds(address(_winningProposal));
             }
         }
         
         // Transferimos la propiedad del contrato de la propuesta ganadora al maker.
         _winningProposal.transferOwnership();
+        winningProposals.push(_winningProposal);
 
+        // Limpio variables de estado
         delete _votingClosureAuthorizers;
-        // ToDo: Borrar los contratos de los arrays
-
+        delete _proposals;
     }
-    
-    function autorizeEndVotingPeriod() external systemStatusIs(SystemStatus.VOTING) onlyAuditor() {
-        bool alreadyAuthorized;
-        for (uint256 p = 0; p < _votingClosureAuthorizers.length; p++) {
-            if (_votingClosureAuthorizers[p] == msg.sender) {
-                alreadyAuthorized = true;
-            }
-        }
-        require(!alreadyAuthorized, 'You already authorized to close voting period.');
-
-        _votingClosureAuthorizers.push(msg.sender);
-    }    
 
     /**
      * @dev Logs senders address and amount (wei sent), then rollback transaction
@@ -297,5 +302,13 @@ contract SmartInvestment {
     receive() external payable {
         emit transactionRolledBack(msg.sender, msg.value);
         revert();
+    }
+
+    function activateSystem(string memory _action) private {
+        // if (_systemStatus == SystemStatus.INACTIVE && auditorsCount > 1 && _makers.length > 2) {
+        if (_systemStatus == SystemStatus.INACTIVE && auditorsCount > 0 && _makers.length > 0) {
+            _systemStatus = SystemStatus.NEUTRAL;
+            emit systemActivated(msg.sender, _action);
+        }
     }
 }
