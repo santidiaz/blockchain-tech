@@ -4,7 +4,9 @@
   "description": "Obligatorio Blockchain 2021",
   "main": "index.js",
   "dependencies": {
-    "dotenv": "^10.0.0"
+    "dotenv": "^10.0.0",
+    "hardhat-contract-sizer": "^2.1.1",
+    "yarn": "^1.22.17"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.2",

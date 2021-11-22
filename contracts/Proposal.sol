@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.4;
 
-contract Proposal {
+import "./Ownable/Ownable.sol";
+
+contract Proposal is Ownable {
     // State variables
     string public name;
     string public description;
@@ -22,6 +24,15 @@ contract Proposal {
     // Enums
 
     // Structs
+    struct ProposalData {
+        string name;
+        string description;
+        uint256 minAmountRequired; // ethers
+        uint256 balance; // ethers
+        address maker;
+        bool audited;
+        bool exists;
+    }
 
     // Address
     address public maker;
@@ -34,11 +45,6 @@ contract Proposal {
     event transferRolledBack(address indexed _from, uint _amount);
 
     // Modifiers
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Not an owner.");
-        _;
-    }
-
     modifier balanceAvailable(uint256 _amount) {
         require(address(this).balance > _amount, "Insufficient balance.");
         _;
@@ -57,7 +63,7 @@ contract Proposal {
     }
     
     // Functions
-    function vote() external payable {
+    /*function vote() external payable {
         require(msg.value >= _minAmountRequired, string(abi.encodePacked("Minimum required to vote is", _minAmountRequired)));
 
         votesCount++;
@@ -75,6 +81,13 @@ contract Proposal {
 
         // Require amount > 
         payable(address(this)).transfer(msg.value); // transfer funds to owner acc
+    }*/
+
+    
+    function receiveFunds(uint256 _amount) payable external {
+        require(_amount >= 5, "Proposal: Minimum investment is 5 ETH.");
+        payable(address(this)).transfer(_amount);
+        votesCount++;
     }
 
     function withdraw(address _remitent, uint256 _amount) external onlyOwner() balanceAvailable(_amount) {
