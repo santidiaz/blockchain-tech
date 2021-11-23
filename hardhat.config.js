@@ -14,13 +14,13 @@ module.exports = {
       }
     }
   },
-  // defaultNetwork: "rinkeby", // <ganache> por defecto.
   contractSizer: {
     alphaSort: true,
     disambiguatePaths: false,
     runOnCompile: true,
     strict: true,
   },
+   // defaultNetwork: "rinkeby", // <ganache> por defecto.
   networks: {
     hardhat: {
       chainid: 31337
@@ -28,8 +28,7 @@ module.exports = {
     ganache: {
       chainid: 5777,
       url: process.env.GANACHE_URL,
-      accounts: [process.env.PRIVATE_KEY_G1, process.env.PRIVATE_KEY_G2, process.env.PRIVATE_KEY_G3, 
-        process.env.PRIVATE_KEY_G4, process.env.PRIVATE_KEY_G5, process.env.PRIVATE_KEY_G6, process.env.PRIVATE_KEY_G7, process.env.PRIVATE_KEY_G8],
+      accounts: [process.env.PRIVATE_KEY_G1, process.env.PRIVATE_KEY_G2],
       from: process.env.ACCOUNT_ADDRESS_G,
       gas: 2100000,
       gasPrice: 8000000000
@@ -37,8 +36,8 @@ module.exports = {
     rinkeby: {
       chainid: 4,
       url: process.env.RINKEBY_URL,
-      accounts: [process.env.PRIVATE_KEY_R1],
-      from: process.env.ACCOUNT_ADDRESS_R1
+      accounts: [process.env.PRIVATE_KEY_R],
+      from: process.env.ACCOUNT_ADDRESS_R
     }
   }
 };
