@@ -2,8 +2,9 @@
 pragma solidity 0.8.4;
 
 import "./Ownable/Ownable.sol";
+import "./Pausable/Pausable.sol";
 
-contract Proposal is Ownable {
+contract Proposal is Ownable, Pausable {
     // State variables
     string public name;
     string public description;
@@ -49,6 +50,14 @@ contract Proposal is Ownable {
     }
     
     // Functions
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
+    }
+
     function getBalance() external view returns(uint256) {
         return address(this).balance;
     }
@@ -60,11 +69,11 @@ contract Proposal is Ownable {
         payable(address(this)).transfer(msg.value); // transfer funds to owner acc
     }
 
-    function withdraw(address _remitent, uint256 _amount) external onlyOwner() balanceAvailable(_amount) {
+    function withdraw(address _remitent, uint256 _amount) external onlyOwner() whenNotPaused() balanceAvailable(_amount) {
         payable(_remitent).transfer(_amount);
     }
 
-    function closeAndTransferFunds(address _owner) external payable onlyOwner() {
+    function closeAndTransferFunds(address _owner) external payable onlyOwner() whenNotPaused() {
         selfdestruct(payable(address(_owner)));
     }
 
