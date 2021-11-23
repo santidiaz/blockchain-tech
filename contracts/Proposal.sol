@@ -7,27 +7,14 @@ contract Proposal is Ownable {
     // State variables
     string public name;
     string public description;
-    uint256 private _minAmountRequired = 5; // ethers
-    Voter[] private _voters;
-
-    struct Voter {
-        address account;
-        bool voted;
-        uint256 balance; // Cada vez que vota, se suma el monto aca
-    }
-
     uint256 public votesCount;
-    
-    // Mappings
-    mapping(address => Voter) public voters;
-
-    // Enums
+    uint256 private _minAmountRequired = 5; // ethers
 
     // Structs
     struct ProposalData {
         string name;
         string description;
-        uint256 minAmountRequired; // ethers
+        uint256 minAmountRequired;
         uint256 balance; // ethers
         address maker;
         bool audited;
@@ -37,7 +24,6 @@ contract Proposal is Ownable {
     // Address
     address public maker;
     address public owner;
-
     
     // Events
     event makerSet(address indexed addedBy, address indexed newMaker);
@@ -63,49 +49,19 @@ contract Proposal is Ownable {
     }
     
     // Functions
-    /*function vote() external payable {
-        require(msg.value >= _minAmountRequired, string(abi.encodePacked("Minimum required to vote is", _minAmountRequired)));
-
-        votesCount++;
-        if (voters[address(msg.sender)].voted) {
-            voters[address(msg.sender)].balance += msg.value;
-        } else {
-            _voters.push(
-                Voter(
-                    address(msg.sender),
-                    true, // voted
-                    msg.value // amount voted
-                )
-            );
-        }
-
-        // Require amount > 
-        payable(address(this)).transfer(msg.value); // transfer funds to owner acc
-    }*/
-
-    
-    function receiveFunds(uint256 _amount) payable external {
-        require(_amount >= 5, "Proposal: Minimum investment is 5 ETH.");
-        payable(address(this)).transfer(_amount);
-        votesCount++;
-    }
-
-    function withdraw(address _remitent, uint256 _amount) external onlyOwner() balanceAvailable(_amount) {
-        payable(_remitent).transfer(_amount);
-    }
-
-     function fund(uint256 _amount) external payable onlyOwner() {
-        payable(address(this)).transfer(_amount);
-    }
-
     function getBalance() external view returns(uint256) {
         return address(this).balance;
     }
 
-    function transferOwnership() external onlyOwner() {
-        owner = maker;
+    function vote() external payable {
+        require(msg.value >= _minAmountRequired, string(abi.encodePacked("Minimum required to vote is", _minAmountRequired)));
 
-        emit ownerSet(msg.sender, owner);
+        votesCount++;
+        payable(address(this)).transfer(msg.value); // transfer funds to owner acc
+    }
+
+    function withdraw(address _remitent, uint256 _amount) external onlyOwner() balanceAvailable(_amount) {
+        payable(_remitent).transfer(_amount);
     }
 
     function closeAndTransferFunds(address _owner) external payable onlyOwner() {

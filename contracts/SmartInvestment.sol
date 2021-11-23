@@ -6,6 +6,7 @@ import "./Ownable/Ownable.sol";
 
 contract SmartInvestment is Ownable {
     // State variables
+    SystemStatus private _systemStatus = SystemStatus.INACTIVE;
     uint256 public auditorsCount;
     uint256 private _auditedProposalsCount;
 
@@ -26,8 +27,6 @@ contract SmartInvestment is Ownable {
 
     // Enums
     enum SystemStatus { INACTIVE, NEUTRAL, OPEN_PROPOSALS, VOTING }
-
-    SystemStatus private _systemStatus = SystemStatus.INACTIVE;
     
     // Structs
     struct Account {
@@ -42,16 +41,9 @@ contract SmartInvestment is Ownable {
         uint256 passport_number;
     }
 
-    // Address
-    address public founder;
-
     // Events
-    event newOwner(address indexed addedBy, address indexed newOwner);
-    event newAuditor(address indexed addedBy, address indexed newAuditor);
-    event newVoter(address indexed addedBy, address indexed newVoter);
-    event newMaker(address indexed addedBy, address indexed newMaker);
+    event newAccount(address indexed addedBy, address indexed newAccount, Role assignedRole);
     event newProposal(address indexed proposedBy, string proposalName);
-    
     event transactionRolledBack(address indexed _from, uint _amount);
     event systemActivated(address indexed _account, string _action);
 
@@ -72,16 +64,16 @@ contract SmartInvestment is Ownable {
     }
 
     constructor() {
-        founder = address(msg.sender);
-        _roleByAddrs[founder][Role.OWNER] = true;
-        accountByAddrs[founder] = Account(founder, Role.OWNER);
-        _accounts.push(accountByAddrs[founder]);
+        _roleByAddrs[address(msg.sender)][Role.OWNER] = true;
+        accountByAddrs[address(msg.sender)] = Account(address(msg.sender), Role.OWNER);
+        _accounts.push(accountByAddrs[address(msg.sender)]);
+
         _systemStatusDescription[SystemStatus.INACTIVE] = "Inactive";
         _systemStatusDescription[SystemStatus.NEUTRAL] = "Neutral";
         _systemStatusDescription[SystemStatus.OPEN_PROPOSALS] = "Proposals Period Open";
         _systemStatusDescription[SystemStatus.VOTING] = "Voting Period Open";
 
-        emit newOwner(address(0), address(msg.sender));
+        emit newAccount(address(0), address(msg.sender), Role.OWNER);
     }
 
     function addOwner(address _newOwnerAddress) external nonZeroAddr(_newOwnerAddress) onlyRole(Role.OWNER) {
@@ -91,7 +83,7 @@ contract SmartInvestment is Ownable {
         accountByAddrs[_newOwnerAddress] = Account(_newOwnerAddress, Role.OWNER);
         _accounts.push(accountByAddrs[_newOwnerAddress]);
 
-        emit newOwner(msg.sender, _newOwnerAddress);
+        emit newAccount(address(msg.sender), _newOwnerAddress, Role.OWNER);
     }
 
     function addAuditor(address _newAuditorAddress) external nonZeroAddr(_newAuditorAddress) onlyRole(Role.OWNER) {
@@ -102,7 +94,7 @@ contract SmartInvestment is Ownable {
         _accounts.push(accountByAddrs[_newAuditorAddress]);
         auditorsCount++;
 
-        emit newAuditor(msg.sender, _newAuditorAddress);
+        emit newAccount(address(msg.sender), _newAuditorAddress, Role.AUDITOR);
 
         activateSystem('addAuditor');
     }
@@ -117,17 +109,12 @@ contract SmartInvestment is Ownable {
         _accounts.push(accountByAddrs[_newMakerAddress]);
         _makers.push(makerByAddrs[_newMakerAddress]);
 
-        emit newMaker(msg.sender, _newMakerAddress);
+        emit newAccount(address(msg.sender), _newMakerAddress, Role.MAKER);
         
         activateSystem('addMaker');
     }
 
-    function addProposal(string memory _name, string memory _description, uint256 _minInvestment)
-        external
-        systemStatusIs(SystemStatus.OPEN_PROPOSALS)
-        onlyRole(Role.MAKER)
-    {
-        require(_minInvestment > 5, 'Minimum investment is 5 ETH.');
+    function addProposal(string memory _name, string memory _description, uint256 _minInvestment) external systemStatusIs(SystemStatus.OPEN_PROPOSALS) onlyRole(Role.MAKER) {
         require(!_proposalDataByName[_name].exists, 'Proposal already exists.');
 
         _proposalDataByName[_name] = Proposal.ProposalData(
@@ -141,7 +128,7 @@ contract SmartInvestment is Ownable {
         );
         _proposalsData.push(_proposalDataByName[_name]);
 
-        emit newProposal(address(msg.sender), _name); 
+        emit newProposal(address(msg.sender), _name);
     }
 
 
@@ -163,14 +150,10 @@ contract SmartInvestment is Ownable {
                     _proposalsData[p].maker,
                     _proposalsData[p].minAmountRequired
                 );
+
                 // La agrego al array de propuestas instanciadas (Las que ya pueden recibir fondos)
                 _proposals.push(proposalByName[_proposalsData[p].name]);
-
-                // Limpio mapping
-                //delete _proposalDataByName[_proposalsData[p].name];
-            }
-            // Si no esta auditada se borra
-            else{
+            } else {
                 delete _proposalDataByName[_proposalsData[p].name];
             }
         }
@@ -201,7 +184,7 @@ contract SmartInvestment is Ownable {
         }
         require(!alreadyAuthorized, 'You already authorized to close voting period.');
 
-        _votingClosureAuthorizers.push(msg.sender);
+        _votingClosureAuthorizers.push(address(msg.sender));
     }
 
     function closeVotingPeriod() external systemStatusIs(SystemStatus.VOTING) onlyRole(Role.OWNER) closeVotingAuthorized() {
@@ -238,15 +221,12 @@ contract SmartInvestment is Ownable {
 
             // Hacemos selfdestruct de la propuesta perdedora y mandamos el dinero a la ganadora.
             if (address(_proposals[p]) != address(_winningProposal)) {
-                // TODO: Abria que limpiar el mapping, pero no funciona me da error por que el name es string
-                // delete proposalByName[_proposals[p].getName()];
-
                 _proposals[p].closeAndTransferFunds(address(_winningProposal));
             }
         }
         
         // Transferimos la propiedad del contrato de la propuesta ganadora al maker.
-        _winningProposal.transferOwnership();
+        _winningProposal.transferOwnership(Proposal(_winningProposal).maker());
         winningProposals.push(_winningProposal);
 
         // Limpio variables de estado
@@ -263,16 +243,9 @@ contract SmartInvestment is Ownable {
     }
 
     function activateSystem(string memory _action) private {
-        // if (_systemStatus == SystemStatus.INACTIVE && auditorsCount > 1 && _makers.length > 2) {
-        if (_systemStatus == SystemStatus.INACTIVE && auditorsCount > 0 && _makers.length > 0) {
+        if (_systemStatus == SystemStatus.INACTIVE && auditorsCount > 1 && _makers.length > 2) {
             _systemStatus = SystemStatus.NEUTRAL;
             emit systemActivated(msg.sender, _action);
         }
     }
-    
-    function vote(string memory _proposal, uint256 _amount) payable external nonZeroAddr(msg.sender) systemStatusIs(SystemStatus.VOTING)  {
-        require(address(proposalByName[_proposal]) != address(0), "Proposal does not exist");
-        proposalByName[_proposal].receiveFunds(_amount);
-    }
-
 }
