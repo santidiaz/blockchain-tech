@@ -249,12 +249,11 @@ contract SmartInvestment is Ownable, Pausable {
     receive() external payable {
     }
 
-
     fallback() external payable {
     }
 
     function activateSystem(string memory _action) whenNotPaused() private {
-       if (_systemStatus == SystemStatus.INACTIVE /*&& auditorsCount > 1 && _makers.length > 2*/) {
+       if (_systemStatus == SystemStatus.INACTIVE && auditorsCount > 1 && _makers.length > 2) {
             _systemStatus = SystemStatus.NEUTRAL;
             emit systemActivated(msg.sender, _action);
         }

@@ -9,7 +9,7 @@ contract Proposal is Ownable, Pausable {
     string public name;
     string public description;
     uint256 public votesCount;
-    uint256 private _minAmountRequired = 1; // ethers
+    uint256 private _minAmountRequired = 5; // ethers
 
     // Structs
     struct ProposalData {
@@ -71,7 +71,7 @@ contract Proposal is Ownable, Pausable {
         payable(_remitent).transfer(_amount);
     }
 
-    function closeAndTransferFunds(address _owner) external onlyOwner() whenNotPaused() {
+    function closeAndTransferFunds(address _owner) external payable onlyOwner() whenNotPaused() {
         selfdestruct(payable(address(_owner)));
     }
 
@@ -83,10 +83,5 @@ contract Proposal is Ownable, Pausable {
         revert();
     }
 
-    fallback() external payable {
-    }
-
-    function getAddress() public view returns(address) {
-        return address(this);
-    }
+    fallback() external payable {}
 }
