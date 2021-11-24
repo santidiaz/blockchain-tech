@@ -38,7 +38,7 @@ contract Proposal is Ownable, Pausable {
     }
 
     // Constructor
-    constructor(string memory _name, string memory _description, address _maker, uint256 _minAmount) {
+    constructor(string memory _name, string memory _description, address _maker, uint256 _minAmount) payable {
         name = _name;
         description = _description;
         maker = _maker;
@@ -64,9 +64,7 @@ contract Proposal is Ownable, Pausable {
 
     function vote() external payable {
         require(msg.value >= _minAmountRequired, string(abi.encodePacked("Minimum required to vote is", _minAmountRequired)));
-
         votesCount++;
-        payable(address(this)).transfer(msg.value); // transfer funds to owner acc
     }
 
     function withdraw(address _remitent, uint256 _amount) external onlyOwner() whenNotPaused() balanceAvailable(_amount) {
@@ -84,4 +82,6 @@ contract Proposal is Ownable, Pausable {
         emit transferRolledBack(msg.sender, msg.value);
         revert();
     }
+
+    fallback() external payable {}
 }

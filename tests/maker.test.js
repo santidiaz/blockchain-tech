@@ -12,7 +12,7 @@ before(async function() {
 describe("Add a maker", async function() {
     describe("When sender is an Owner", async function() {
         it("should allow it", async function() {
-            expect(await contractInstance.addMMaker("0x1928feBA7284b967034D462691df508793DB9edD")).to.be.ok;
+            expect(await contractInstance.addMaker("0x1928feBA7284b967034D462691df508793DB9edD", "maker", "country", 123)).to.be.ok;
         });
     });
 
@@ -24,7 +24,7 @@ describe("Add a maker", async function() {
             const notOwnerwMsgSender = await contractInstance.connect(notOwnerSigner);
 
             try {
-                await notOwnerwMsgSender.addMaker("0x1928feBA7284b967034D462691df508793DB9edD");
+                await notOwnerwMsgSender.addMaker("0x1928feBA7284b967034D462691df508793DB9edD", "maker", "country", 123);
             } catch (error) {
                 expected_result = error;
             }

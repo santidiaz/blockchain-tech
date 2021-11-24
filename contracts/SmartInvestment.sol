@@ -64,7 +64,12 @@ contract SmartInvestment is Ownable, Pausable {
         _;
     }
 
-    constructor() {
+    modifier balanceAvailable(uint256 _amount) {
+        require(address(this).balance > _amount, "Insufficient balance.");
+        _;
+    }
+
+    constructor() payable {
         _roleByAddrs[address(msg.sender)][Role.OWNER] = true;
         accountByAddrs[address(msg.sender)] = Account(address(msg.sender), Role.OWNER);
         _accounts.push(accountByAddrs[address(msg.sender)]);
@@ -201,7 +206,7 @@ contract SmartInvestment is Ownable, Pausable {
         for (uint256 p = 0; p < _proposals.length; p++) {
             _proposalsBalanceTotal += _proposals[p].getBalance();
         }
-        require(_proposalsBalanceTotal < 50, 'Total proposals balance is less than 50 ETH.');
+        require(_proposalsBalanceTotal >= 50, 'Total proposals balance is less than 50 ETH.');
 
         _systemStatus = SystemStatus.NEUTRAL;
 
@@ -243,16 +248,21 @@ contract SmartInvestment is Ownable, Pausable {
         delete _proposals;
     }
 
+    function withdraw(address _remitent, uint256 _amount) external onlyOwner() whenNotPaused() balanceAvailable(_amount) {
+        payable(_remitent).transfer(_amount);
+    }
+
     /**
      * @dev Logs senders address and amount (wei sent), then rollback transaction
      */
     receive() external payable {
-        emit transactionRolledBack(msg.sender, msg.value);
-        revert();
+    }
+
+    fallback() external payable {
     }
 
     function activateSystem(string memory _action) whenNotPaused() private {
-        if (_systemStatus == SystemStatus.INACTIVE && auditorsCount > 1 && _makers.length > 2) {
+       if (_systemStatus == SystemStatus.INACTIVE && auditorsCount > 1 && _makers.length > 2) {
             _systemStatus = SystemStatus.NEUTRAL;
             emit systemActivated(msg.sender, _action);
         }
