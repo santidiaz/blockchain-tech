@@ -3,8 +3,9 @@ pragma solidity 0.8.4;
 
 import "./Proposal.sol";
 import "./Ownable/Ownable.sol";
+import "./Pausable/Pausable.sol";
 
-contract SmartInvestment is Ownable {
+contract SmartInvestment is Ownable, Pausable {
     // State variables
     SystemStatus private _systemStatus = SystemStatus.INACTIVE;
     uint256 public auditorsCount;
@@ -76,7 +77,15 @@ contract SmartInvestment is Ownable {
         emit newAccount(address(0), address(msg.sender), Role.OWNER);
     }
 
-    function addOwner(address _newOwnerAddress) external nonZeroAddr(_newOwnerAddress) onlyRole(Role.OWNER) {
+    function pause() public onlyOwner {
+        _pause();
+    }
+
+    function unpause() public onlyOwner {
+        _unpause();
+    }
+
+    function addOwner(address _newOwnerAddress) external nonZeroAddr(_newOwnerAddress) whenNotPaused() onlyRole(Role.OWNER) {
         require(_roleByAddrs[_newOwnerAddress][Role.OWNER] == false, 'Owner already exists.');
 
         _roleByAddrs[_newOwnerAddress][Role.OWNER] = true;
@@ -86,7 +95,7 @@ contract SmartInvestment is Ownable {
         emit newAccount(address(msg.sender), _newOwnerAddress, Role.OWNER);
     }
 
-    function addAuditor(address _newAuditorAddress) external nonZeroAddr(_newAuditorAddress) onlyRole(Role.OWNER) {
+    function addAuditor(address _newAuditorAddress) external nonZeroAddr(_newAuditorAddress) whenNotPaused() onlyRole(Role.OWNER) {
         require(_roleByAddrs[_newAuditorAddress][Role.AUDITOR] == false, 'Auditor already exists.');
 
         _roleByAddrs[_newAuditorAddress][Role.AUDITOR] = true;
@@ -99,7 +108,7 @@ contract SmartInvestment is Ownable {
         activateSystem('addAuditor');
     }
 
-    function addMaker(address _newMakerAddress, string memory _name, string memory _residenceCountry, uint256 _passportNumber) external nonZeroAddr(_newMakerAddress) onlyRole(Role.OWNER) {
+    function addMaker(address _newMakerAddress, string memory _name, string memory _residenceCountry, uint256 _passportNumber) external nonZeroAddr(_newMakerAddress) whenNotPaused() onlyRole(Role.OWNER) {
         require(_roleByAddrs[_newMakerAddress][Role.MAKER] == false, 'Maker already exists.');
 
         _roleByAddrs[_newMakerAddress][Role.MAKER] = true;
@@ -114,7 +123,7 @@ contract SmartInvestment is Ownable {
         activateSystem('addMaker');
     }
 
-    function addProposal(string memory _name, string memory _description, uint256 _minInvestment) external systemStatusIs(SystemStatus.OPEN_PROPOSALS) onlyRole(Role.MAKER) {
+    function addProposal(string memory _name, string memory _description, uint256 _minInvestment) external whenNotPaused() systemStatusIs(SystemStatus.OPEN_PROPOSALS) onlyRole(Role.MAKER) {
         require(!_proposalDataByName[_name].exists, 'Proposal already exists.');
 
         _proposalDataByName[_name] = Proposal.ProposalData(
@@ -132,11 +141,11 @@ contract SmartInvestment is Ownable {
     }
 
 
-    function openProposalsPeriod() external systemStatusIs(SystemStatus.NEUTRAL) onlyRole(Role.OWNER) {
+    function openProposalsPeriod() external whenNotPaused() systemStatusIs(SystemStatus.NEUTRAL) onlyRole(Role.OWNER) {
         _systemStatus = SystemStatus.OPEN_PROPOSALS;
     }
 
-    function closeProposalsPeriod() external systemStatusIs(SystemStatus.OPEN_PROPOSALS) onlyRole(Role.OWNER) {
+    function closeProposalsPeriod() external whenNotPaused() systemStatusIs(SystemStatus.OPEN_PROPOSALS) onlyRole(Role.OWNER) {
         require(_auditedProposalsCount > 1, 'Minimun 2 proposal audited required to start voting period.');
 
         // Itero por las propuestas presentadas.
@@ -166,7 +175,7 @@ contract SmartInvestment is Ownable {
         _systemStatus = SystemStatus.VOTING;
     }
     
-    function auditProposal(string memory _proposalName) external systemStatusIs(SystemStatus.OPEN_PROPOSALS) onlyRole(Role.AUDITOR) {
+    function auditProposal(string memory _proposalName) external whenNotPaused() systemStatusIs(SystemStatus.OPEN_PROPOSALS) onlyRole(Role.AUDITOR) {
         require(_proposalDataByName[_proposalName].exists, 'Proposal not found.');
         require(!_proposalDataByName[_proposalName].audited, 'Already audited.');
 
@@ -175,7 +184,7 @@ contract SmartInvestment is Ownable {
         _auditedProposalsCount++;
     }
 
-    function authorizeEndVotingPeriod() external systemStatusIs(SystemStatus.VOTING) onlyRole(Role.AUDITOR) {
+    function authorizeEndVotingPeriod() external whenNotPaused() systemStatusIs(SystemStatus.VOTING) onlyRole(Role.AUDITOR) {
         bool alreadyAuthorized;
         for (uint256 p = 0; p < _votingClosureAuthorizers.length; p++) {
             if (_votingClosureAuthorizers[p] == msg.sender) {
@@ -187,7 +196,7 @@ contract SmartInvestment is Ownable {
         _votingClosureAuthorizers.push(address(msg.sender));
     }
 
-    function closeVotingPeriod() external systemStatusIs(SystemStatus.VOTING) onlyRole(Role.OWNER) closeVotingAuthorized() {
+    function closeVotingPeriod() external whenNotPaused() systemStatusIs(SystemStatus.VOTING) onlyRole(Role.OWNER) closeVotingAuthorized() {
         uint256 _proposalsBalanceTotal;
         for (uint256 p = 0; p < _proposals.length; p++) {
             _proposalsBalanceTotal += _proposals[p].getBalance();
@@ -242,7 +251,7 @@ contract SmartInvestment is Ownable {
         revert();
     }
 
-    function activateSystem(string memory _action) private {
+    function activateSystem(string memory _action) whenNotPaused() private {
         if (_systemStatus == SystemStatus.INACTIVE && auditorsCount > 1 && _makers.length > 2) {
             _systemStatus = SystemStatus.NEUTRAL;
             emit systemActivated(msg.sender, _action);
