@@ -28,7 +28,10 @@ module.exports = {
     ganache: {
       chainid: 5777,
       url: process.env.GANACHE_URL,
-      accounts: [process.env.PRIVATE_KEY_G1, process.env.PRIVATE_KEY_G2],
+      accounts: [
+        process.env.PRIVATE_KEY_G1, process.env.PRIVATE_KEY_G2, process.env.PRIVATE_KEY_G3,
+        process.env.PRIVATE_KEY_G4, process.env.PRIVATE_KEY_G5, process.env.PRIVATE_KEY_G6
+      ],
       from: process.env.ACCOUNT_ADDRESS_G,
       gas: 2100000,
       gasPrice: 8000000000
