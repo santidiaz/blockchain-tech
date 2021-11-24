@@ -64,6 +64,11 @@ contract SmartInvestment is Ownable, Pausable {
         _;
     }
 
+    modifier balanceAvailable(uint256 _amount) {
+        require(address(this).balance > _amount, "Insufficient balance.");
+        _;
+    }
+
     constructor() payable {
         _roleByAddrs[address(msg.sender)][Role.OWNER] = true;
         accountByAddrs[address(msg.sender)] = Account(address(msg.sender), Role.OWNER);
@@ -241,6 +246,10 @@ contract SmartInvestment is Ownable, Pausable {
         // Limpio variables de estado
         delete _votingClosureAuthorizers;
         delete _proposals;
+    }
+
+    function withdraw(address _remitent, uint256 _amount) external onlyOwner() whenNotPaused() balanceAvailable(_amount) {
+        payable(_remitent).transfer(_amount);
     }
 
     /**
